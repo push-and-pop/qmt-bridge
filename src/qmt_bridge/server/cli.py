@@ -90,6 +90,19 @@ def main():
         default=os.environ.get("QMT_BRIDGE_TRADING_ACCOUNT_ID", ""),
         help="Trading account ID",
     )
+    parser.add_argument(
+        "--discovery-port",
+        type=int,
+        default=int(os.environ.get("QMT_BRIDGE_DISCOVERY_PORT", "8001")),
+        help="UDP port for the LAN discovery beacon (default: 8001)",
+    )
+    parser.add_argument(
+        "--no-discovery",
+        action="store_true",
+        default=os.environ.get("QMT_BRIDGE_DISCOVERY_ENABLED", "true").lower()
+        not in ("1", "true", "yes"),
+        help="Disable the LAN discovery beacon",
+    )
 
     args = parser.parse_args()
 
@@ -103,6 +116,8 @@ def main():
         trading_enabled=args.trading,
         mini_qmt_path=args.mini_qmt_path,
         trading_account_id=args.account_id,
+        discovery_enabled=not args.no_discovery,
+        discovery_port=args.discovery_port,
     )
     # 将配置对象设置为全局单例，供后续模块通过 get_settings() 获取
     reset_settings(settings)
@@ -124,15 +139,38 @@ def main():
 
     # 创建 FastAPI 应用实例
     app = create_app(settings)
-    # 启动 Uvicorn ASGI 服务器
-    uvicorn.run(
-        app,
-        host=settings.host,
-        port=settings.port,
-        log_level=settings.log_level,
-        workers=settings.workers,
-        timeout_graceful_shutdown=3,
-    )
+
+    # 启动局域网发现信标（独立 UDP 线程，不碰 xtquant/HTTP）。放在 uvicorn.run 外面
+    # 而不是 FastAPI lifespan 里，是因为它是同步线程、生命周期和进程对齐即可，无需
+    # 卷进 ASGI 的异步启停。
+    beacon = None
+    if settings.discovery_enabled:
+        from ._version import __version__
+        from .discovery import BridgeBeacon
+
+        beacon = BridgeBeacon(
+            http_port=settings.port,
+            discovery_port=settings.discovery_port,
+            trading=settings.trading_enabled,
+            account_present=bool(
+                settings.trading_enabled and settings.trading_account_id
+            ),
+            version=__version__,
+        ).start()
+
+    try:
+        # 启动 Uvicorn ASGI 服务器
+        uvicorn.run(
+            app,
+            host=settings.host,
+            port=settings.port,
+            log_level=settings.log_level,
+            workers=settings.workers,
+            timeout_graceful_shutdown=3,
+        )
+    finally:
+        if beacon is not None:
+            beacon.stop()
 
 
 def scheduler_main():

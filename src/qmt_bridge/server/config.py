@@ -77,6 +77,10 @@ class Settings:
     mini_qmt_path: str = ""        # miniQMT 客户端安装路径
     trading_account_id: str = ""   # 交易资金账号 ID
 
+    # ---- 局域网发现信标配置 ----
+    discovery_enabled: bool = True   # 是否开启 UDP 发现信标（让主力机免 IP 搜索）
+    discovery_port: int = 8001       # 信标监听的 UDP 端口
+
     # ---- 通知模块配置 ----
     notify_enabled: bool = False   # 是否启用通知推送
     notify_backends: str = ""      # 通知后端，逗号分隔，如 "feishu", "webhook", "feishu,webhook"
@@ -130,6 +134,11 @@ class Settings:
             trading_account_id=os.environ.get(
                 "QMT_BRIDGE_TRADING_ACCOUNT_ID", ""
             ),
+            discovery_enabled=os.environ.get(
+                "QMT_BRIDGE_DISCOVERY_ENABLED", "true"
+            ).lower()
+            in ("1", "true", "yes"),
+            discovery_port=int(os.environ.get("QMT_BRIDGE_DISCOVERY_PORT", "8001")),
             # 通知相关配置
             notify_enabled=os.environ.get(
                 "QMT_BRIDGE_NOTIFY_ENABLED", ""

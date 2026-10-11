@@ -119,6 +119,25 @@ http://<Windows局域网IP>:8000/docs
 curl http://<Windows局域网IP>:8000/api/meta/health
 ```
 
+## 局域网发现（免 IP 搜索）
+
+主力机不想每次都填 Windows 的 IP（DHCP 下会变），可以让它**广播搜索**：服务端默认在
+UDP 端口 `8001` 上开一个发现信标，收到探测就把自己的 HTTP 端口、版本、是否开了交易
+等信息单播回去。主力机广播一次就能收齐全网所有 Bridge。
+
+```
+主力机  --UDP广播 "qmt-bridge-discover"-->  255.255.255.255:8001
+Bridge  --UDP单播  {http_port, trading, version, ...} -->  主力机
+```
+
+- 协议纯 UDP + 单行 JSON，零依赖，两端都只用标准库。
+- 防火墙除了放行 HTTP 端口外，还要放行发现用的 UDP 端口（默认 8001）。
+- 关闭：`qmt-server --no-discovery`，或 `QMT_BRIDGE_DISCOVERY_ENABLED=false`。
+- 换端口：`qmt-server --discovery-port 9001`，或 `QMT_BRIDGE_DISCOVERY_PORT=9001`
+  （主力机要用同一个端口搜索）。
+
+应答里带的是服务端**实际**的 HTTP 端口，所以 `QMT_BRIDGE_PORT` 怎么改都能被正确找到。
+
 ## Configuration
 
 通过 `.env` 文件或环境变量配置，CLI 参数优先级最高。
