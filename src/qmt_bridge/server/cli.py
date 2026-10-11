@@ -145,7 +145,7 @@ def main():
     # 卷进 ASGI 的异步启停。
     beacon = None
     if settings.discovery_enabled:
-        from ._version import __version__
+        from .._version import __version__
         from .discovery import BridgeBeacon
 
         beacon = BridgeBeacon(
